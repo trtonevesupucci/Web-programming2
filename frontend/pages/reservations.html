@@ -103,7 +103,7 @@
                         <tr>
                             <td>${res.reservation_date || 'N/A'}</td>
                             <td>${res.reservation_time || 'N/A'}</td>
-                            <td>${res.number_of_guests}</td>
+                            <td>${res.guests}</td>
                             <td><span class="badge ${statusBadge}">${res.status}</span></td>
                         </tr>
                     `);
@@ -120,7 +120,7 @@
             const data = {
                 reservation_date: $('#date').val(),
                 reservation_time: $('#time').val(),
-                number_of_guests: $('#guests').val(),
+                guests: $('#guests').val(),
                 special_requests: $('#specialRequests').val()
             };
             

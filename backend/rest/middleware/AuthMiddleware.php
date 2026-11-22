@@ -2,115 +2,93 @@
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-/**
- * Authentication and Authorization Middleware
- * Handles JWT verification and role-based access control
- */
 class AuthMiddleware
 {
-    /**
-     * Verify JWT token from request header
-     * @param string $token
-     * @return bool
-     */
-    public function verifyToken($token)
+    public function authenticate()
     {
+        $token = $this->extractToken();
         if (!$token) {
-            Flight::halt(401, json_encode(['error' => 'Missing authentication token']));
+            throw HttpException::unauthorized('Missing authentication token');
         }
 
         try {
-            $decoded_token = JWT::decode($token, new Key(Config::JWT_SECRET(), 'HS256'));
-            Flight::set('user', $decoded_token->user);
-            Flight::set('jwt_token', $token);
-            return TRUE;
+            $decoded = JWT::decode($token, new Key(Config::JWT_SECRET(), 'HS256'));
         } catch (\Exception $e) {
-            Flight::halt(401, json_encode(['error' => 'Invalid token: ' . $e->getMessage()]));
+            throw HttpException::unauthorized('Invalid or expired token');
         }
+
+        if (!isset($decoded->user)) {
+            throw HttpException::unauthorized('Invalid or expired token');
+        }
+
+        Flight::set('user', $decoded->user);
+        Flight::set('jwt_token', $token);
+        return true;
     }
 
-    /**
-     * Check if user has a specific role
-     * @param string $requiredRole
-     * @return bool
-     */
     public function authorizeRole($requiredRole)
     {
-        $user = Flight::get('user');
-        
-        // Convert object to array if needed
-        if (is_object($user)) {
-            $user_role = $user->role ?? null;
-        } else {
-            $user_role = $user['role'] ?? null;
-        }
-        
-        if (!$user || $user_role !== $requiredRole) {
-            Flight::halt(403, json_encode(['error' => 'Access denied: insufficient privileges']));
-        }
-        
-        return TRUE;
+        return $this->authorizeRoles([$requiredRole]);
     }
 
-    /**
-     * Check if user has one of multiple allowed roles
-     * @param array $roles
-     * @return bool
-     */
-    public function authorizeRoles($roles)
+    public function authorizeRoles(array $roles)
     {
-        $user = Flight::get('user');
-        
-        if (!$user || !in_array($user->role, $roles)) {
-            Flight::halt(403, json_encode(['error' => 'Forbidden: role not allowed']));
+        $user = $this->getUser();
+        if (!$user) {
+            throw HttpException::unauthorized();
         }
-        
-        return TRUE;
+        if (!in_array($user->role ?? null, $roles, true)) {
+            throw HttpException::forbidden();
+        }
+        return true;
     }
 
-    /**
-     * Check if user has a specific permission
-     * @param string $permission
-     * @return bool
-     */
-    public function authorizePermission($permission)
-    {
-        $user = Flight::get('user');
-        
-        if (!$user || !isset($user->permissions) || !in_array($permission, $user->permissions)) {
-            Flight::halt(403, json_encode(['error' => 'Access denied: permission missing']));
-        }
-        
-        return TRUE;
-    }
-
-    /**
-     * Get current authenticated user
-     * @return object
-     */
     public function getUser()
     {
-        return Flight::get('user');
+        return Flight::has('user') ? Flight::get('user') : null;
     }
 
-    /**
-     * Check if current user is admin
-     * @return bool
-     */
+    public function getUserId()
+    {
+        $user = $this->getUser();
+        return $user ? (int) $user->id : null;
+    }
+
     public function isAdmin()
     {
-        $user = Flight::get('user');
-        return $user && $user->role === 'admin';
+        $user = $this->getUser();
+        return $user && ($user->role ?? null) === Roles::ADMIN;
     }
 
-    /**
-     * Check if current user is customer/user
-     * @return bool
-     */
-    public function isCustomer()
+    public function authorizeOwnerOrAdmin($ownerId)
     {
-        $user = Flight::get('user');
-        return $user && $user->role === 'customer';
+        if ($this->isAdmin()) {
+            return true;
+        }
+        if ((int) $ownerId !== $this->getUserId()) {
+            throw HttpException::forbidden();
+        }
+        return true;
+    }
+
+    private function extractToken()
+    {
+        $header = null;
+        foreach (getallheaders() as $name => $value) {
+            if (strtolower($name) === 'authorization') {
+                $header = $value;
+                break;
+            }
+        }
+        if (!$header && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $header = $_SERVER['HTTP_AUTHORIZATION'];
+        }
+        if (!$header || $header === 'null') {
+            return null;
+        }
+        if (stripos($header, 'Bearer ') === 0) {
+            $header = substr($header, 7);
+        }
+        return trim($header);
     }
 }
-?>

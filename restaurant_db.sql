@@ -176,9 +176,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `name`, `email`, `password`, `phone`, `role`, `created_at`, `updated_at`) VALUES
-(1, 'Admin User', 'admin@restaurant.com', '$2y$10$abcdefghijklmnopqrstuvwxyz', '+123456789', 'admin', '2025-10-31 13:34:55', '2025-10-31 13:34:55'),
-(2, 'John Doe', 'john@example.com', '$2y$10$abcdefghijklmnopqrstuvwxyz', '+987654321', 'customer', '2025-10-31 13:34:55', '2025-10-31 13:34:55'),
-(3, 'Jane Smith', 'jane@example.com', '$2y$10$abcdefghijklmnopqrstuvwxyz', '+555666777', 'customer', '2025-10-31 13:34:55', '2025-10-31 13:34:55');
+(1, 'Admin User', 'admin@restaurant.com', '$2y$10$k00oMpDThZcmOF9xRH8t6eyRJJMxBC08uKLo.WD5XAjlrTfZWAOxi', '+123456789', 'admin', '2025-10-31 13:34:55', '2025-10-31 13:34:55'),
+(2, 'John Doe', 'john@example.com', '$2y$10$k00oMpDThZcmOF9xRH8t6eyRJJMxBC08uKLo.WD5XAjlrTfZWAOxi', '+987654321', 'customer', '2025-10-31 13:34:55', '2025-10-31 13:34:55'),
+(3, 'Jane Smith', 'jane@example.com', '$2y$10$k00oMpDThZcmOF9xRH8t6eyRJJMxBC08uKLo.WD5XAjlrTfZWAOxi', '+555666777', 'customer', '2025-10-31 13:34:55', '2025-10-31 13:34:55');
 
 --
 -- Indexes for dumped tables
@@ -305,4 +305,4 @@ COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;ž
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
