@@ -1,72 +1,35 @@
 <?php
-require_once 'BaseDao.php';
+require_once __DIR__ . '/BaseDao.php';
 
-/**
- * User DAO
- * Handles database operations for users table
- */
 class UserDao extends BaseDao
 {
-    protected $table_name;
-
     public function __construct()
     {
-        $this->table_name = "users";
-        parent::__construct($this->table_name);
+        parent::__construct('users');
     }
 
-    /**
-     * Get user by email
-     * @param string $email
-     * @return array|false
-     */
     public function getUserByEmail($email)
     {
-        $stmt = $this->connection->prepare("SELECT * FROM users WHERE email = :email");
-        $stmt->bindParam(':email', $email);
-        $stmt->execute();
-        return $stmt->fetch();
+        return $this->query_unique('SELECT * FROM users WHERE email = :email', ['email' => $email]);
     }
 
-    /**
-     * Get users by role
-     * @param string $role - customer, admin, or staff
-     * @return array
-     */
     public function getUsersByRole($role)
     {
-        $stmt = $this->connection->prepare("SELECT * FROM users WHERE role = :role");
-        $stmt->bindParam(':role', $role);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query('SELECT * FROM users WHERE role = :role ORDER BY id', ['role' => $role]);
     }
 
-    /**
-     * Check if email exists
-     * @param string $email
-     * @return bool
-     */
-    public function emailExists($email)
+    public function emailExists($email, $excludeId = null)
     {
-        $stmt = $this->connection->prepare("SELECT COUNT(*) as count FROM users WHERE email = :email");
-        $stmt->bindParam(':email', $email);
-        $stmt->execute();
-        $result = $stmt->fetch();
+        $result = $this->query_unique(
+            'SELECT COUNT(*) AS count FROM users WHERE email = :email AND id <> :exclude_id',
+            ['email' => $email, 'exclude_id' => $excludeId ?? 0]
+        );
         return $result['count'] > 0;
     }
 
-    /**
-     * Update user password
-     * @param int $id
-     * @param string $password - hashed password
-     * @return bool
-     */
     public function updatePassword($id, $password)
     {
-        $stmt = $this->connection->prepare("UPDATE users SET password = :password WHERE id = :id");
-        $stmt->bindParam(':password', $password);
-        $stmt->bindParam(':id', $id);
-        return $stmt->execute();
+        $stmt = $this->connection->prepare('UPDATE users SET password = :password WHERE id = :id');
+        return $stmt->execute(['password' => $password, 'id' => $id]);
     }
 }
-?>

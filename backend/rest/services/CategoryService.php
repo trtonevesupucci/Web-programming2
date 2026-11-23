@@ -1,81 +1,85 @@
 <?php
 require_once __DIR__ . '/BaseService.php';
 require_once __DIR__ . '/../dao/CategoryDao.php';
+require_once __DIR__ . '/../dao/MenuItemDao.php';
 
-/**
- * Category Service
- * Business logic for category operations
- */
 class CategoryService extends BaseService
 {
+    protected $fields = ['name', 'description'];
+    protected $entityName = 'Category';
+    private $menuItemDao;
+
     public function __construct()
     {
-        $dao = new CategoryDao();
-        parent::__construct($dao);
+        parent::__construct(new CategoryDao());
+        $this->menuItemDao = new MenuItemDao();
     }
 
-    /**
-     * Get category by name
-     * @param string $name
-     * @return array|false
-     */
-    public function getCategoryByName($name)
-    {
-        if (empty($name)) {
-            throw new Exception("Category name is required");
-        }
-        return $this->dao->getCategoryByName($name);
-    }
-
-    /**
-     * Get categories with item count
-     * @return array
-     */
     public function getCategoriesWithItemCount()
     {
         return $this->dao->getCategoriesWithItemCount();
     }
 
-    /**
-     * Add new category (with validation)
-     * @param array $data
-     * @return array
-     */
+    public function getCategoryByName($name)
+    {
+        if (trim((string) $name) === '') {
+            throw HttpException::badRequest('Category name is required');
+        }
+        $category = $this->dao->getCategoryByName(trim($name));
+        if (!$category) {
+            throw HttpException::notFound('Category not found');
+        }
+        return $category;
+    }
+
     public function add($data)
     {
-        // Validation
-        if (empty($data['name'])) {
-            throw new Exception("Category name is required");
-        }
+        $data = $this->filterFields($data);
+        $this->requireFields($data, ['name']);
+        $data['name'] = trim($data['name']);
+        $this->validate($data);
 
-        // Check if category name already exists
         if ($this->dao->getCategoryByName($data['name'])) {
-            throw new Exception("Category name already exists");
+            throw HttpException::badRequest('Category name already exists');
         }
 
-        return parent::add($data);
+        return $this->dao->add($data);
     }
 
-    /**
-     * Update category (with validation)
-     * @param int $id
-     * @param array $data
-     * @return array
-     */
     public function update($id, $data)
     {
-        // Check if category exists
-        $existingCategory = $this->dao->getById($id);
-        if (!$existingCategory) {
-            throw new Exception("Category not found");
+        $this->getById($id);
+        $data = $this->filterFields($data);
+        if (empty($data)) {
+            throw HttpException::badRequest('Request body is empty or contains no valid fields');
         }
-
-        // Validate name if provided
-        if (isset($data['name']) && empty($data['name'])) {
-            throw new Exception("Category name cannot be empty");
+        if (array_key_exists('name', $data)) {
+            $data['name'] = trim((string) $data['name']);
+            if ($data['name'] === '') {
+                throw HttpException::badRequest('Category name cannot be empty');
+            }
+            $existing = $this->dao->getCategoryByName($data['name']);
+            if ($existing && (int) $existing['id'] !== (int) $id) {
+                throw HttpException::badRequest('Category name already exists');
+            }
         }
+        $this->validate($data);
 
-        return parent::update($id, $data);
+        return $this->dao->update($data, $id);
+    }
+
+    public function delete($id)
+    {
+        $this->getById($id);
+        if (count($this->menuItemDao->getByCategory($id)) > 0) {
+            throw HttpException::badRequest('Category cannot be deleted while it still contains menu items');
+        }
+        return $this->dao->delete($id);
+    }
+
+    private function validate($data)
+    {
+        $this->validateLength($data, 'name', 100, 2);
+        $this->validateLength($data, 'description', 1000);
     }
 }
-?>

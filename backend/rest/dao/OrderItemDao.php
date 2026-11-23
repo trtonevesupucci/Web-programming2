@@ -1,79 +1,54 @@
 <?php
-require_once 'BaseDao.php';
+require_once __DIR__ . '/BaseDao.php';
 
-/**
- * OrderItem DAO
- * Handles database operations for order_items table
- */
 class OrderItemDao extends BaseDao
 {
-    protected $table_name;
-
     public function __construct()
     {
-        $this->table_name = "order_items";
-        parent::__construct($this->table_name);
+        parent::__construct('order_items');
     }
 
-    /**
-     * Get order items by order ID
-     * @param int $order_id
-     * @return array
-     */
     public function getItemsByOrder($order_id)
     {
-        $stmt = $this->connection->prepare("SELECT * FROM order_items WHERE order_id = :order_id");
-        $stmt->bindParam(':order_id', $order_id);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query('SELECT * FROM order_items WHERE order_id = :order_id ORDER BY id', ['order_id' => $order_id]);
     }
 
-    /**
-     * Get order items with menu item details
-     * @param int $order_id
-     * @return array
-     */
     public function getItemsWithMenuDetails($order_id)
     {
-        $query = "SELECT oi.*, m.name as item_name, m.description as item_description
-                  FROM order_items oi
-                  JOIN menu_items m ON oi.menu_item_id = m.id
-                  WHERE oi.order_id = :order_id";
-        $stmt = $this->connection->prepare($query);
-        $stmt->bindParam(':order_id', $order_id);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query(
+            'SELECT oi.*, m.name AS item_name, m.image_url AS item_image
+             FROM order_items oi
+             JOIN menu_items m ON oi.menu_item_id = m.id
+             WHERE oi.order_id = :order_id
+             ORDER BY oi.id',
+            ['order_id' => $order_id]
+        );
     }
 
-    /**
-     * Get most ordered menu items
-     * @param int $limit
-     * @return array
-     */
+    public function getOrderTotal($order_id)
+    {
+        $result = $this->query_unique('SELECT COALESCE(SUM(price * quantity), 0) AS total FROM order_items WHERE order_id = :order_id', ['order_id' => $order_id]);
+        return (float) $result['total'];
+    }
+
     public function getMostOrderedItems($limit = 10)
     {
-        $query = "SELECT m.id, m.name, SUM(oi.quantity) as total_ordered
-                  FROM order_items oi
-                  JOIN menu_items m ON oi.menu_item_id = m.id
-                  GROUP BY m.id
-                  ORDER BY total_ordered DESC
-                  LIMIT :limit";
-        $stmt = $this->connection->prepare($query);
-        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt = $this->connection->prepare(
+            'SELECT m.id, m.name, SUM(oi.quantity) AS total_ordered
+             FROM order_items oi
+             JOIN menu_items m ON oi.menu_item_id = m.id
+             GROUP BY m.id, m.name
+             ORDER BY total_ordered DESC
+             LIMIT :limit'
+        );
+        $stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     }
 
-    /**
-     * Delete items by order ID
-     * @param int $order_id
-     * @return bool
-     */
     public function deleteByOrderId($order_id)
     {
-        $stmt = $this->connection->prepare("DELETE FROM order_items WHERE order_id = :order_id");
-        $stmt->bindParam(':order_id', $order_id);
-        return $stmt->execute();
+        $stmt = $this->connection->prepare('DELETE FROM order_items WHERE order_id = :order_id');
+        return $stmt->execute(['order_id' => $order_id]);
     }
 }
-?>

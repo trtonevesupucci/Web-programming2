@@ -1,141 +1,121 @@
 <?php
 require_once __DIR__ . '/BaseService.php';
 require_once __DIR__ . '/../dao/UserDao.php';
+require_once __DIR__ . '/../data/roles.php';
 
-/**
- * User Service
- * Business logic for user operations
- */
 class UserService extends BaseService
 {
+    protected $fields = ['name', 'email', 'password', 'phone', 'role'];
+    protected $entityName = 'User';
+
     public function __construct()
     {
-        $dao = new UserDao();
-        parent::__construct($dao);
+        parent::__construct(new UserDao());
     }
 
-    /**
-     * Get user by email
-     * @param string $email
-     * @return array|false
-     */
+    public function getAll()
+    {
+        return array_map([$this, 'hidePassword'], parent::getAll());
+    }
+
+    public function getById($id)
+    {
+        return $this->hidePassword(parent::getById($id));
+    }
+
     public function getUserByEmail($email)
     {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Invalid email format");
+            throw HttpException::badRequest('Invalid email format');
         }
-        return $this->dao->getUserByEmail($email);
+        $user = $this->dao->getUserByEmail($email);
+        if (!$user) {
+            throw HttpException::notFound('User not found');
+        }
+        return $this->hidePassword($user);
     }
 
-    /**
-     * Get users by role
-     * @param string $role
-     * @return array
-     */
     public function getUsersByRole($role)
     {
-        $validRoles = ['customer', 'admin', 'staff'];
-        if (!in_array($role, $validRoles)) {
-            throw new Exception("Invalid role. Must be: customer, admin, or staff");
+        if (!in_array($role, Roles::all(), true)) {
+            throw HttpException::badRequest('Invalid role. Allowed: ' . implode(', ', Roles::all()));
         }
-        return $this->dao->getUsersByRole($role);
+        return array_map([$this, 'hidePassword'], $this->dao->getUsersByRole($role));
     }
 
-    /**
-     * Add new user (with validation)
-     * @param array $data
-     * @return array
-     */
     public function add($data)
     {
-        // Validation
-        if (empty($data['name'])) {
-            throw new Exception("Name is required");
-        }
-        if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Valid email is required");
-        }
-        if (empty($data['password'])) {
-            throw new Exception("Password is required");
-        }
-        if (strlen($data['password']) < 6) {
-            throw new Exception("Password must be at least 6 characters");
-        }
+        $data = $this->filterFields($data);
+        $this->requireFields($data, ['name', 'email', 'password']);
+        $data['name'] = trim($data['name']);
+        $data['email'] = strtolower(trim($data['email']));
+        $this->validate($data);
 
-        // Check if email already exists
         if ($this->dao->emailExists($data['email'])) {
-            throw new Exception("Email already exists");
+            throw HttpException::badRequest('Email already exists');
         }
 
-        // Hash password
-        $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
-
-        // Set default role if not provided
+        $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
         if (empty($data['role'])) {
-            $data['role'] = 'customer';
+            $data['role'] = Roles::CUSTOMER;
         }
 
-        return parent::add($data);
+        return $this->hidePassword($this->dao->add($data));
     }
 
-    /**
-     * Update user (with validation)
-     * @param int $id
-     * @param array $data
-     * @return array
-     */
     public function update($id, $data)
     {
-        // Check if user exists
-        $existingUser = $this->dao->getById($id);
-        if (!$existingUser) {
-            throw new Exception("User not found");
-        }
+        parent::getById($id);
+        $data = $this->filterFields($data);
 
-        // Validate email if provided
-        if (isset($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Invalid email format");
-        }
-
-        // Hash password if provided
-        if (isset($data['password']) && !empty($data['password'])) {
-            if (strlen($data['password']) < 6) {
-                throw new Exception("Password must be at least 6 characters");
-            }
-            $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
-        } else {
+        if (array_key_exists('password', $data) && ($data['password'] === null || $data['password'] === '')) {
             unset($data['password']);
         }
+        if (empty($data)) {
+            throw HttpException::badRequest('Request body is empty or contains no valid fields');
+        }
+        if (isset($data['name'])) {
+            $data['name'] = trim($data['name']);
+            if ($data['name'] === '') {
+                throw HttpException::badRequest('Name cannot be empty');
+            }
+        }
+        if (isset($data['email'])) {
+            $data['email'] = strtolower(trim($data['email']));
+        }
+        $this->validate($data);
 
-        return parent::update($id, $data);
+        if (isset($data['email']) && $this->dao->emailExists($data['email'], $id)) {
+            throw HttpException::badRequest('Email already exists');
+        }
+        if (isset($data['password'])) {
+            $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+        }
+
+        return $this->hidePassword($this->dao->update($data, $id));
     }
 
-    /**
-     * Authenticate user (login)
-     * @param string $email
-     * @param string $password
-     * @return array|false
-     */
-    public function authenticate($email, $password)
+    private function validate($data)
     {
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Invalid email format");
+        $this->validateLength($data, 'name', 100, 2);
+        if (isset($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            throw HttpException::badRequest('Invalid email format');
         }
-
-        $user = $this->dao->getUserByEmail($email);
-        
-        if (!$user) {
-            throw new Exception("Invalid credentials");
+        $this->validateLength($data, 'email', 100);
+        $this->validateLength($data, 'password', 255, 6);
+        if (isset($data['phone']) && $data['phone'] !== '' && !preg_match('/^\+?[0-9 \-]{6,20}$/', $data['phone'])) {
+            throw HttpException::badRequest('Invalid phone number');
         }
-
-        if (!password_verify($password, $user['password'])) {
-            throw new Exception("Invalid credentials");
+        if (isset($data['role']) && !in_array($data['role'], Roles::all(), true)) {
+            throw HttpException::badRequest('Invalid role. Allowed: ' . implode(', ', Roles::all()));
         }
+    }
 
-        // Remove password from response
-        unset($user['password']);
-
+    private function hidePassword($user)
+    {
+        if (is_array($user)) {
+            unset($user['password']);
+        }
         return $user;
     }
 }
-?>

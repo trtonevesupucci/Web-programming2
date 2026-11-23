@@ -1,84 +1,41 @@
 <?php
-require_once 'BaseDao.php';
+require_once __DIR__ . '/BaseDao.php';
 
-/**
- * MenuItem DAO
- * Handles database operations for menu_items table
- */
 class MenuItemDao extends BaseDao
 {
-    protected $table_name;
-
     public function __construct()
     {
-        $this->table_name = "menu_items";
-        parent::__construct($this->table_name);
+        parent::__construct('menu_items');
     }
 
-    /**
-     * Get menu items by category ID
-     * @param int $category_id
-     * @return array
-     */
     public function getByCategory($category_id)
     {
-        $stmt = $this->connection->prepare("SELECT * FROM menu_items WHERE category_id = :category_id");
-        $stmt->bindParam(':category_id', $category_id);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query('SELECT * FROM menu_items WHERE category_id = :category_id ORDER BY id', ['category_id' => $category_id]);
     }
 
-    /**
-     * Get available menu items
-     * @return array
-     */
     public function getAvailableItems()
     {
-        $stmt = $this->connection->prepare("SELECT * FROM menu_items WHERE is_available = 1");
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query('SELECT * FROM menu_items WHERE is_available = 1 ORDER BY id');
     }
 
-    /**
-     * Get menu items with category details
-     * @return array
-     */
     public function getMenuItemsWithCategory()
     {
-        $query = "SELECT m.*, c.name as category_name, c.description as category_description 
-                  FROM menu_items m 
-                  JOIN categories c ON m.category_id = c.id";
-        $stmt = $this->connection->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query(
+            'SELECT m.*, c.name AS category_name
+             FROM menu_items m
+             JOIN categories c ON m.category_id = c.id
+             ORDER BY m.id'
+        );
     }
 
-    /**
-     * Search menu items by name
-     * @param string $search_term
-     * @return array
-     */
     public function searchByName($search_term)
     {
-        $stmt = $this->connection->prepare("SELECT * FROM menu_items WHERE name LIKE :search");
-        $search = "%" . $search_term . "%";
-        $stmt->bindParam(':search', $search);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->query('SELECT * FROM menu_items WHERE name LIKE :search ORDER BY id', ['search' => '%' . $search_term . '%']);
     }
 
-    /**
-     * Update item availability
-     * @param int $id
-     * @param bool $is_available
-     * @return bool
-     */
     public function updateAvailability($id, $is_available)
     {
-        $stmt = $this->connection->prepare("UPDATE menu_items SET is_available = :is_available WHERE id = :id");
-        $stmt->bindParam(':is_available', $is_available);
-        $stmt->bindParam(':id', $id);
-        return $stmt->execute();
+        $stmt = $this->connection->prepare('UPDATE menu_items SET is_available = :is_available WHERE id = :id');
+        return $stmt->execute(['is_available' => $is_available ? 1 : 0, 'id' => $id]);
     }
 }
-?>

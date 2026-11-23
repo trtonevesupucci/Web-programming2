@@ -1,0 +1,9 @@
+backend/rest/config.php
+backend/logs/
+backend/rest/vendor/
+backend/rest/.phpunit.result.cache
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
